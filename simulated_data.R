@@ -1,6 +1,6 @@
 ### Example taken from
 ### Moore, Dirk. Applied Survival Analysis Using R. 2016
-### Exampled expanded to compare expected event time
+### Example expanded to compare expected time to event
 ### Between Cox, OLS, and Poisson
 
 library(survival)
@@ -11,7 +11,7 @@ library(Metrics)
 
 set.seed(1)
 
-nobs <- 3*60
+nobs <- 3*3000
 
 age <- runif(nobs, 25, 85)
 
@@ -37,33 +37,37 @@ rm(age, loghazard, time_to_event, status)
 
 summary(df)
 
+## split train-test
+
+train <- sample(1:nrow(df), size=round(0.75*nobs))
+
 ### Cox Model
 
-cox_mod <- coxph(Surv(time, status) ~ age + category, data=df)
+cox_mod <- coxph(Surv(time, status) ~ age + category, data=df[train,])
 
 summary(cox_mod)
 
 
 ## OLS Model
 
-lm_mod <- lm(time ~ age + category, data=df)
+lm_mod <- lm(time ~ age + category, data=df[train,])
 
 summary(lm_mod)
 
 ## Poisson Model
 
-pois_mod <- glm(time ~ age + category, data=df, family=poisson)
+pois_mod <- glm(time ~ age + category, data=df[train,], family=poisson)
 
 summary(pois_mod)
 
-## Compare Time to Event
+## Predict Expected Time to Event (with test set)
 
-cox_surv_curves <- summary(survfit(cox_mod, newdata=df))
+cox_surv_curves <- summary(survfit(cox_mod, newdata=df[-train,]))
 
 tte_cox <- cox_surv_curves$table[,"rmean"]
-tte_ols <- predict(lm_mod)
-tte_pois <- predict(pois_mod, type="response")
-tte_actuals <- df$time
+tte_ols <- predict(lm_mod, newdata=df[-train,])
+tte_pois <- predict(pois_mod, newdata=df[-train,], type="response")
+tte_actuals <- df[-train, "time"]
 
 df_plot <- data.frame(tte_actuals=tte_actuals,
                       tte_cox=tte_cox,
@@ -80,6 +84,9 @@ ggplot(df_plot_longer, aes(x=tte_actuals, y=predicted, color=model)) +
 
 ## Compare MSE
 
-lapply(list(tte_cox=tte_cox, tte_ols=tte_ols, tte_pois=tte_pois), function(x) {
-  Metrics::mse(actual=tte_actuals, predicted=x)
+lapply(list(tte_cox=tte_cox, 
+            tte_ols=tte_ols, 
+            tte_pois=tte_pois),
+       function(x) {
+          Metrics::mse(actual=tte_actuals, predicted=x)
 })
