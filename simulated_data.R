@@ -54,6 +54,12 @@ lm_mod <- lm(time ~ age + category, data=df[train,])
 
 summary(lm_mod)
 
+## Log-OLS Model
+
+lm_mod_log <- lm(log(time+1) ~ age + category, data=df[train,])
+
+summary(lm_mod_log)
+
 ## Poisson Model
 
 pois_mod <- glm(time ~ age + category, data=df[train,], family=poisson)
@@ -66,12 +72,14 @@ cox_surv_curves <- summary(survfit(cox_mod, newdata=df[-train,]))
 
 tte_cox <- cox_surv_curves$table[,"rmean"]
 tte_ols <- predict(lm_mod, newdata=df[-train,])
+tte_ols_log <- exp(predict(lm_mod_log, newdata=df[-train,])) - 1
 tte_pois <- predict(pois_mod, newdata=df[-train,], type="response")
 tte_actuals <- df[-train, "time"]
 
 df_plot <- data.frame(tte_actuals=tte_actuals,
                       tte_cox=tte_cox,
                       tte_ols=tte_ols,
+                      tte_ols_log=tte_ols_log,
                       tte_pois=tte_pois)
 
 df_plot_longer <- pivot_longer(df_plot, -tte_actuals, values_to="predicted",
@@ -86,6 +94,7 @@ ggplot(df_plot_longer, aes(x=tte_actuals, y=predicted, color=model)) +
 
 lapply(list(tte_cox=tte_cox, 
             tte_ols=tte_ols, 
+            tte_ols_log=tte_ols_log,
             tte_pois=tte_pois),
        function(x) {
           Metrics::mse(actual=tte_actuals, predicted=x)
